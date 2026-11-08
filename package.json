@@ -1,0 +1,27 @@
+{
+  "name": "sitesentinel",
+  "version": "1.0.0",
+  "description": "SiteSentinel — Automated Website Uptime and Performance Monitoring System",
+  "private": true,
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "start:server": "npm --prefix server start",
+    "build:client": "npm --prefix client run build",
+    "test:backend": "node server/test-suite.js"
+  },
+  "keywords": [
+    "uptime-monitor",
+    "website-monitoring",
+    "mern-stack",
+    "mongodb",
+    "express",
+    "react",
+    "nodejs",
+    "ssrf-protection",
+    "node-cron",
+    "recharts"
+  ],
+  "author": "SiteSentinel Engineering",
+  "license": "MIT"
+}
