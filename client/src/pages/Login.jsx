@@ -9,7 +9,7 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { login } = useAuth();
+  const { login, register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -47,7 +47,6 @@ const Login = () => {
         navigate(from, { replace: true });
       } catch (loginErr) {
         // If demo user doesn't exist yet, auto-register them
-        const { register } = useAuth();
         await register('Faculty Evaluator', 'demo.evaluator@sitesentinel.edu', 'demo123456');
         navigate(from, { replace: true });
       }
