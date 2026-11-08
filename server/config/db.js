@@ -1,5 +1,16 @@
+import dns from 'dns';
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger.js';
+
+// Configure resilient DNS fallback for SRV lookups only if system resolvers default to unserved loopback
+try {
+  const currentServers = dns.getServers();
+  if (!currentServers || currentServers.length === 0 || currentServers.every(s => s.startsWith('127.') || s === '::1')) {
+    dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+  }
+} catch {
+  // If DNS configuration is restricted or custom resolver is present, proceed with system resolver
+}
 
 let isListenersRegistered = false;
 
@@ -38,6 +49,13 @@ export const connectDB = async (maxRetries = 5, retryDelayMs = 2000) => {
 
   const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/sitesentinel';
   const maskedUri = uri.replace(/\/\/([^:]+):([^@]+)@/, '//$1:****@');
+
+  // Validate connection string to detect malformed template placeholders like <username> or <password>
+  if (uri.includes('<') || uri.includes('>')) {
+    const placeholderError = new Error('[Database Config Error] MONGODB_URI contains unreplaced placeholder angle brackets ("<" or ">"). Please remove angle brackets from your database connection string in .env.');
+    logger.error(placeholderError.message);
+    throw placeholderError;
+  }
 
   const mongooseOptions = {
     serverSelectionTimeoutMS: 10000,
