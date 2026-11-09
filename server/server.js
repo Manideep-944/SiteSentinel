@@ -21,42 +21,84 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Enable trusted proxy for cloud deployments (e.g. Render reverse proxy) so req.ip is secure and reliable
+app.set('trust proxy', 1);
+
 // Configure allowed origins (supporting comma-separated list and trailing-slash normalization)
+// Explicitly reject wildcard '*' to prevent any accidental wildcard CORS access
 const rawClientUrls = process.env.CLIENT_URL || 'http://localhost:5173';
 const allowedOrigins = rawClientUrls
   .split(',')
   .map(url => url.trim().replace(/\/+$/, ''))
-  .filter(Boolean);
+  .filter(url => Boolean(url) && url !== '*'); // Reject wildcard '*'
 
-// Always allow local development origins if not in production
-if (process.env.NODE_ENV !== 'production') {
-  if (!allowedOrigins.includes('http://localhost:5173')) allowedOrigins.push('http://localhost:5173');
-  if (!allowedOrigins.includes('http://127.0.0.1:5173')) allowedOrigins.push('http://127.0.0.1:5173');
+// Always ensure exact production frontend and local development origins are permitted
+const defaultAllowedOrigins = [
+  'https://site-sentinel-two.vercel.app',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
+];
+
+for (const origin of defaultAllowedOrigins) {
+  if (!allowedOrigins.includes(origin)) {
+    allowedOrigins.push(origin);
+  }
 }
 
-// Middleware
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow non-browser requests (health checks, server-to-server, curl, Postman)
-    if (!origin) return callback(null, true);
+/**
+ * Validates whether an incoming request origin is authorized.
+ * Permitted:
+ * 1. Non-browser callers (curl, monitoring bots, health checks, server-to-server)
+ * 2. Exact production frontend origin (https://site-sentinel-two.vercel.app)
+ * 3. Explicitly configured non-wildcard origins in CLIENT_URL
+ * 4. Localhost and loopback origins for local development
+ */
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
 
-    const normalizedOrigin = origin.replace(/\/+$/, '');
-    if (allowedOrigins.includes(normalizedOrigin) || allowedOrigins.includes('*')) {
-      return callback(null, true);
+  const normalized = origin.trim().replace(/\/+$/, '');
+  // Disallow any wildcard '*'
+  if (normalized === '*') return false;
+
+  if (allowedOrigins.includes(normalized)) {
+    return true;
+  }
+
+  try {
+    const { hostname, protocol } = new URL(normalized);
+    // Allow local development across standard dev server ports
+    if ((hostname === 'localhost' || hostname === '127.0.0.1') && (protocol === 'http:' || protocol === 'https:')) {
+      return true;
     }
+  } catch {
+    return false;
+  }
 
-    // Allow Vercel preview domains if enabled
-    if (process.env.ALLOW_VERCEL_PREVIEWS === 'true' && /\.vercel\.app$/.test(new URL(origin).hostname)) {
+  return false;
+};
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (isOriginAllowed(origin)) {
+      // Echo origin back to support credentials safely without wildcard collisions
       return callback(null, true);
     }
 
     logger.warn(`[CORS Blocked] Origin not allowed: ${origin}. Configured: ${allowedOrigins.join(', ')}`);
-    return callback(new Error(`Origin ${origin} not permitted by CORS policy`), false);
+    // Return false without throwing an uncaught Error so Express does not emit a 500 error
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Disposition'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
+
+// Middleware
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 

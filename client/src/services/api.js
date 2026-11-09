@@ -1,8 +1,22 @@
 import axios from 'axios';
 
-const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-// Normalize base URL by trimming whitespace and removing trailing slashes
-const API_BASE_URL = rawApiUrl.trim().replace(/\/+$/, '');
+// Resolve API base URL with intelligent environment fallback
+const getBaseApiUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
+    return envUrl.replace(/['"]+/g, '').trim().replace(/\/+$/, '');
+  }
+
+  // When loaded in a browser on localhost / loopback, target local server
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'http://localhost:5000/api';
+  }
+
+  // When deployed to production / preview (e.g. Vercel), target deployed Render backend
+  return 'https://sitesentinel-backend.onrender.com/api';
+};
+
+const API_BASE_URL = getBaseApiUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -29,12 +43,16 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Clear token on 401 Unauthorized
-      localStorage.removeItem('sitesentinel_token');
-      localStorage.removeItem('sitesentinel_user');
-      // If we are not already on the login page, redirect
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-        window.location.href = '/login';
+      const reqUrl = error.config?.url || '';
+      const isAuthRequest = reqUrl.includes('/auth/login') || reqUrl.includes('/auth/register') || reqUrl.includes('/auth/demo');
+
+      // Clear tokens only on authenticated protected routes, not failed login attempts
+      if (!isAuthRequest) {
+        localStorage.removeItem('sitesentinel_token');
+        localStorage.removeItem('sitesentinel_user');
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

@@ -38,7 +38,11 @@ const Register = () => {
       await register(name.trim(), email.trim(), password);
       navigate('/', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      if (!err.response) {
+        setError('Cannot connect to server. Please check your internet connection or verify the backend service.');
+      } else {
+        setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

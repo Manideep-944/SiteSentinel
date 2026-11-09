@@ -3,13 +3,19 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ShieldCheck, Mail, Lock, ArrowRight, AlertCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
+// Public demonstration credentials provided solely for evaluator preview access
+const PUBLIC_DEMO_CREDENTIALS = {
+  email: 'demo.evaluator@sitesentinel.edu',
+  password: 'demo123456'
+};
+
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { login, register } = useAuth();
+  const { login, demoLogin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -29,29 +35,30 @@ const Login = () => {
       await login(email, password);
       navigate(from, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid email or password.');
+      if (!err.response) {
+        setError('Cannot connect to server. Please check your internet connection or verify the backend service.');
+      } else {
+        setError(err.response?.data?.message || 'Invalid email or password.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleDemoLogin = async () => {
-    setEmail('demo.evaluator@sitesentinel.edu');
-    setPassword('demo123456');
+    setEmail(PUBLIC_DEMO_CREDENTIALS.email);
+    setPassword(PUBLIC_DEMO_CREDENTIALS.password);
     setError('');
     try {
       setLoading(true);
-      // Try login first
-      try {
-        await login('demo.evaluator@sitesentinel.edu', 'demo123456');
-        navigate(from, { replace: true });
-      } catch (loginErr) {
-        // If demo user doesn't exist yet, auto-register them
-        await register('Faculty Evaluator', 'demo.evaluator@sitesentinel.edu', 'demo123456');
-        navigate(from, { replace: true });
-      }
+      await demoLogin();
+      navigate(from, { replace: true });
     } catch (err) {
-      setError('Demo login failed. You can create an account using Register.');
+      if (!err.response) {
+        setError('Cannot connect to server for Demo Login. Please verify network and backend status.');
+      } else {
+        setError(err.response?.data?.message || 'Demo login failed. You can create an account using Register.');
+      }
     } finally {
       setLoading(false);
     }

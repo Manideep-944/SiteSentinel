@@ -47,6 +47,29 @@ export const AuthProvider = ({ children }) => {
     return res;
   };
 
+  const demoLogin = async () => {
+    let res;
+    try {
+      res = await authService.demoLogin();
+    } catch (err) {
+      // Only fall back to standard evaluator login if the /auth/demo endpoint is not yet deployed (HTTP 404)
+      if (err.response && err.response.status === 404) {
+        res = await authService.login('demo.evaluator@sitesentinel.edu', 'demo123456');
+      } else {
+        // Preserve meaningful errors: 429 Rate Limits, 500 Server Errors, and Network Errors
+        throw err;
+      }
+    }
+
+    if (res.success && res.token) {
+      setToken(res.token);
+      setUser(res.user);
+      localStorage.setItem('sitesentinel_token', res.token);
+      localStorage.setItem('sitesentinel_user', JSON.stringify(res.user));
+    }
+    return res;
+  };
+
   const register = async (name, email, password) => {
     const res = await authService.register(name, email, password);
     if (res.success && res.token) {
@@ -75,7 +98,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateProfile, isAuthenticated: Boolean(token && user) }}>
+    <AuthContext.Provider value={{ user, token, loading, login, demoLogin, register, logout, updateProfile, isAuthenticated: Boolean(token && user) }}>
       {children}
     </AuthContext.Provider>
   );

@@ -47,7 +47,9 @@ function registerConnectionListeners() {
 export const connectDB = async (maxRetries = 5, retryDelayMs = 2000) => {
   registerConnectionListeners();
 
-  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/sitesentinel';
+  const uri = process.env.NODE_ENV === 'test'
+    ? (process.env.TEST_MONGODB_URI || 'mongodb://127.0.0.1:27017/sitesentinel_test')
+    : (process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/sitesentinel');
   const maskedUri = uri.replace(/\/\/([^:]+):([^@]+)@/, '//$1:****@');
 
   // Validate connection string to detect malformed template placeholders like <username> or <password>
